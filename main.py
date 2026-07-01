@@ -84,7 +84,7 @@ def decrypt_payload(encrypted_aes_key_b64: str, encrypted_iv_b64: str, encrypted
 @app.get("/", response_class=HTMLResponse)
 def form(request: Request):
     logger.info("Served frontend index.html")
-    return templates.TemplateResponse(name="index.html", context={"request": request})
+    return templates.TemplateResponse(request, "index.html")
 
 @app.get("/api/public-key")
 def get_public_key():
