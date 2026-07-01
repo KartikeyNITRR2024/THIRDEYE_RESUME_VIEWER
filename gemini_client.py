@@ -68,3 +68,8 @@ def generate_resume_json(
     except json.JSONDecodeError as e:
         logger.error(f"Failed to decode Gemini response: {str(e)}")
         raise ValueError(f"Gemini did not return valid JSON: {e}\nRaw output: {raw[:500]}")
+
+
+@app.get("/health")
+async def health_check():
+    return {"status": "ok"}
