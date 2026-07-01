@@ -1,0 +1,199 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI Tailored Resume Generator</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="/static/css/styles.css">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jsencrypt/3.3.2/jsencrypt.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/crypto-js/4.1.1/crypto-js.min.js"></script>
+    <style type="text/tailwindcss">
+        /* Custom abstract classes combining Tailwind utilities */
+        .form-input {
+            @apply mt-1 block w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition-all duration-200;
+        }
+
+        .form-textarea {
+            @apply mt-1 block w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition-all duration-200 resize-y min-h-[120px];
+        }
+
+        /* Custom Interactive Chips */
+        .chip {
+            @apply inline-flex items-center px-3 py-1.5 rounded-full border border-blue-200 bg-white text-sm text-blue-700 font-medium cursor-pointer transition-all duration-200 select-none hover:bg-blue-100 hover:shadow-sm;
+        }
+        .chip.active {
+            @apply bg-blue-600 text-white border-blue-600 shadow-md;
+        }
+
+        .bullet-chip {
+            @apply block w-full text-left px-4 py-3 mt-2 rounded-lg border border-purple-200 bg-white text-sm text-gray-700 cursor-pointer transition-all duration-200 select-none hover:border-purple-400 hover:shadow-sm;
+        }
+        .bullet-chip.active {
+            @apply bg-purple-600 text-white border-purple-600 shadow-md;
+        }
+        .bullet-company {
+            @apply block text-xs font-bold text-purple-500 mb-1 uppercase tracking-wider;
+        }
+        .bullet-chip.active .bullet-company {
+            @apply text-purple-200;
+        }
+
+        /* Smooth JSON scrollbar */
+        #json_editor::-webkit-scrollbar { width: 8px; height: 8px; }
+        #json_editor::-webkit-scrollbar-track { background: #1f2937; border-radius: 8px; }
+        #json_editor::-webkit-scrollbar-thumb { background: #4b5563; border-radius: 8px; }
+        #json_editor::-webkit-scrollbar-thumb:hover { background: #6b7280; }
+    </style>
+</head>
+<body class="bg-gray-50 text-gray-800 font-sans antialiased min-h-screen py-8 px-4 sm:px-6 lg:px-8">
+
+    <div class="max-w-4xl mx-auto space-y-8">
+        
+        <div class="text-center space-y-2">
+            <h1 class="text-3xl md:text-4xl font-extrabold tracking-tight text-transparent bg-clip-text bg-gradient-to-r from-blue-600 to-purple-600">
+                AI Resume Tailor
+            </h1>
+            <p class="text-gray-500">Optimize your resume for any job description instantly.</p>
+        </div>
+
+        <div id="step1" class="bg-white rounded-2xl shadow-xl border border-gray-100 p-6 md:p-8 transition-all">
+            <h2 class="text-xl font-bold text-gray-800 mb-6 flex items-center gap-2">
+                <span class="bg-blue-100 text-blue-600 rounded-full w-8 h-8 flex items-center justify-center text-sm">1</span> 
+                Generate Draft
+            </h2>
+            
+            <form id="draftForm" class="space-y-5" enctype="multipart/form-data">
+                
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-5">
+                    <div>
+                        <label class="block text-sm font-semibold text-gray-700">Gemini API Key</label>
+                        <input type="text" name="gemini_key" id="gemini_key" required class="form-input">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-semibold text-gray-700">Model Selection (Price: Low to High)</label>
+                        <select name="gemini_model" id="gemini_model" required class="form-input">
+                            <option value="gemini-1.5-flash-8b">Gemini 1.5 Flash-8b (~$0.04/M)</option>
+                            <option value="gemini-2.0-flash-lite">Gemini 2.0 Flash-Lite (~$0.075/M)</option>
+                            <option value="gemini-2.0-flash">Gemini 2.0 Flash (~$0.10/M)</option>
+                            <option value="gemini-2.5-flash" selected>Gemini 2.5 Flash (~$0.30/M)</option>
+                            <option value="gemini-3-flash-preview">Gemini 3 Flash Preview (~$0.50/M)</option>
+                            <option value="gemini-1.5-pro">Gemini 1.5 Pro (~$1.25/M)</option>
+                            <option value="gemini-2.5-pro">Gemini 2.5 Pro (~$1.25/M)</option>
+                            <option value="gemini-3.1-pro-preview">Gemini 3.1 Pro Preview (~$2.00/M)</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-5">
+                    <div>
+                        <label class="block text-sm font-semibold text-gray-700">Target Company Name</label>
+                        <input type="text" name="company_name" id="company_name" required class="form-input">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-semibold text-gray-700">Years of Experience</label>
+                        <input type="text" name="years_exp" placeholder="e.g., 3 years" required class="form-input">
+                    </div>
+                    <!-- <div>
+                        <label class="block text-sm font-semibold text-gray-700">Email Delivery <span class="text-gray-400 font-normal">(Optional)</span></label>
+                        <input type="email" name="email_to" id="email_to" placeholder="youremail@example.com" class="form-input">
+                    </div> -->
+                </div>
+
+                <div class="bg-gray-50 border border-gray-200 rounded-xl p-4">
+                    <label class="block text-sm font-semibold text-gray-700 mb-3">Your Current Resume</label>
+                    <div class="flex gap-6 mb-4">
+                        <label class="inline-flex items-center cursor-pointer">
+                            <input type="radio" name="resume_input_type" value="text" checked class="w-4 h-4 text-blue-600 bg-gray-100 border-gray-300 focus:ring-blue-500" onchange="toggleResumeInput()">
+                            <span class="ml-2 text-sm text-gray-700">Paste Text</span>
+                        </label>
+                        <label class="inline-flex items-center cursor-pointer">
+                            <input type="radio" name="resume_input_type" value="pdf" class="w-4 h-4 text-blue-600 bg-gray-100 border-gray-300 focus:ring-blue-500" onchange="toggleResumeInput()">
+                            <span class="ml-2 text-sm text-gray-700">Upload PDF</span>
+                        </label>
+                    </div>
+
+                    <div id="resume_text_container">
+                        <textarea name="resume_text" id="resume_text" required placeholder="Paste your current resume as plain text..." class="form-textarea mt-0 bg-white"></textarea>
+                    </div>
+                    
+                    <div id="resume_pdf_container" class="hidden">
+                        <input type="file" name="resume_pdf" id="resume_pdf" accept="application/pdf" class="block w-full text-sm text-gray-500 file:mr-4 file:py-2.5 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100 transition-all cursor-pointer bg-white border border-gray-200 rounded-lg">
+                        <p class="text-xs text-gray-500 mt-2">Only .pdf files are supported.</p>
+                    </div>
+                </div>
+
+                <div>
+                    <label class="block text-sm font-semibold text-gray-700 mb-1">Job Description (JD)</label>
+                    <textarea name="job_description" required placeholder="Paste the JD you want to optimize for..." class="form-textarea"></textarea>
+                </div>
+
+                <div class="flex flex-col sm:flex-row gap-4 mt-6">
+                    <button type="submit" id="btnDraft" class="flex-1 py-3 px-4 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white font-bold rounded-xl shadow-lg hover:shadow-xl transition-all focus:ring-4 focus:ring-blue-300 disabled:opacity-50 disabled:cursor-not-allowed">
+                        ✨ Generate AI Draft
+                    </button>
+                    <button type="reset" id="btnClear" onclick="setTimeout(toggleResumeInput, 10)" class="py-3 px-8 bg-gray-100 hover:bg-gray-200 text-gray-700 font-bold rounded-xl border border-gray-200 transition-all focus:ring-4 focus:ring-gray-100">
+                        Clear Fields
+                    </button>
+                </div>
+            </form>
+        </div>
+
+        <div id="step2" class="hidden bg-white rounded-2xl shadow-xl border border-gray-100 p-6 md:p-8 transition-all">
+            <h2 class="text-xl font-bold text-gray-800 mb-6 flex items-center gap-2">
+                <span class="bg-purple-100 text-purple-600 rounded-full w-8 h-8 flex items-center justify-center text-sm">2</span> 
+                Review & Edit Content
+            </h2>
+            
+            <div id="ai_suggestions" class="hidden mb-6 space-y-4">
+                <div id="skills_panel" class="hidden bg-blue-50 border border-blue-100 rounded-xl p-4">
+                    <h4 class="text-sm font-bold text-blue-800 mb-3 flex items-center gap-2">
+                        <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 20 20"><path d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z"></path></svg>
+                        Missing JD Skills (Click to add)
+                    </h4>
+                    <div id="skills_container" class="flex flex-wrap gap-2"></div>
+                </div>
+                
+                <div id="bullets_panel" class="hidden bg-purple-50 border border-purple-100 rounded-xl p-4">
+                    <h4 class="text-sm font-bold text-purple-800 mb-3">✨ Suggested Bullets (Click to append)</h4>
+                    <div id="bullets_container" class="space-y-2"></div>
+                </div>
+            </div>
+
+            <p class="text-sm text-gray-500 mb-2">Manually edit the generated JSON data below if needed.</p>
+            <textarea id="json_editor" spellcheck="false" class="w-full h-[500px] p-4 bg-gray-900 text-green-400 font-mono text-sm rounded-xl border border-gray-800 shadow-inner overflow-auto focus:outline-none focus:ring-2 focus:ring-purple-500"></textarea>
+            
+            <button id="btnConfirm" class="w-full mt-6 py-3 px-4 bg-gray-900 hover:bg-black text-white font-bold rounded-xl shadow-lg transition-all focus:ring-4 focus:ring-gray-300 disabled:opacity-50 disabled:cursor-not-allowed">
+                📄 Looks Good, Generate PDF
+            </button>
+        </div>
+
+    </div>
+
+    <script>
+        function toggleResumeInput() {
+            const type = document.querySelector('input[name="resume_input_type"]:checked').value;
+            const textContainer = document.getElementById('resume_text_container');
+            const pdfContainer = document.getElementById('resume_pdf_container');
+            const textInput = document.getElementById('resume_text');
+            const pdfInput = document.getElementById('resume_pdf');
+
+            if (type === 'text') {
+                textContainer.classList.remove('hidden');
+                pdfContainer.classList.add('hidden');
+                textInput.required = true;
+                pdfInput.required = false;
+                pdfInput.value = ''; // Clear file input so it's not sent unintentionally
+            } else {
+                textContainer.classList.add('hidden');
+                pdfContainer.classList.remove('hidden');
+                textInput.required = false;
+                pdfInput.required = true;
+                textInput.value = ''; // Clear text input so it's not sent unintentionally
+            }
+        }
+    </script>
+    
+    <script src="/static/js/app.js"></script>
+</body>
+</html>
