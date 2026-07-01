@@ -13,6 +13,7 @@ from fastapi.staticfiles import StaticFiles
 from dotenv import load_dotenv
 from pydantic import BaseModel
 from pypdf import PdfReader
+from starlette.background import BackgroundTask
 
 from Crypto.PublicKey import RSA
 from Crypto.Cipher import PKCS1_v1_5, AES
@@ -31,12 +32,15 @@ logger = logging.getLogger("thirdeye_backend")
 
 load_dotenv()
 
+BASE_DIR = Path(__file__).resolve().parent
+
 app = FastAPI(title="Thirdeye Resume Generator")
 
-app.mount("/static", StaticFiles(directory="static"), name="static")
-templates = Jinja2Templates(directory="templates")
+app.mount("/static", StaticFiles(directory=str(BASE_DIR / "static")), name="static")
+templates = Jinja2Templates(directory=str(BASE_DIR / "templates"))
+templates.env.cache = None
 
-OUTPUT_DIR = Path("generated")
+OUTPUT_DIR = BASE_DIR / "generated"
 OUTPUT_DIR.mkdir(exist_ok=True)
 
 class ConfirmPayload(BaseModel):
@@ -80,7 +84,7 @@ def decrypt_payload(encrypted_aes_key_b64: str, encrypted_iv_b64: str, encrypted
 @app.get("/", response_class=HTMLResponse)
 def form(request: Request):
     logger.info("Served frontend index.html")
-    return templates.TemplateResponse("index.html", {"request": request})
+    return templates.TemplateResponse(name="index.html", context={"request": request})
 
 @app.get("/api/public-key")
 def get_public_key():
@@ -159,7 +163,7 @@ class EncryptedPayload(BaseModel):
     encrypted_payload: str
 
 @app.post("/api/confirm")
-def confirm_resume(payload: EncryptedPayload, background_tasks: BackgroundTasks):
+def confirm_resume(payload: EncryptedPayload):
     logger.info("Received /api/confirm request. Starting payload decryption.")
     
     decrypted_data = decrypt_payload(
@@ -190,9 +194,9 @@ def confirm_resume(payload: EncryptedPayload, background_tasks: BackgroundTasks)
         generate_resume_pdf(data, output_path)
         logger.info(f"PDF generated successfully at {output_path}. Sending FileResponse.")
 
-        background_tasks.add_task(cleanup_file, output_path)
+        cleanup_task = BackgroundTask(cleanup_file, output_path)
         
-        return FileResponse(output_path, media_type="application/pdf", filename=filename)
+        return FileResponse(output_path, media_type="application/pdf", filename=filename, background=cleanup_task)
     except Exception as e:
         logger.error(f"Error compiling PDF: {str(e)}")
         return JSONResponse(status_code=500, content={"error": "Server error during PDF compilation."})
