@@ -6,8 +6,7 @@ import json
 import logging
 from pathlib import Path
 from typing import Optional
-
-from fastapi import FastAPI, Form, File, UploadFile, Request
+from fastapi import FastAPI, Form, File, UploadFile, Request, BackgroundTasks
 from fastapi.responses import FileResponse, HTMLResponse, JSONResponse
 from fastapi.templating import Jinja2Templates
 from fastapi.staticfiles import StaticFiles
@@ -160,7 +159,7 @@ class EncryptedPayload(BaseModel):
     encrypted_payload: str
 
 @app.post("/api/confirm")
-def confirm_resume(payload: EncryptedPayload):
+def confirm_resume(payload: EncryptedPayload, background_tasks: BackgroundTasks):
     logger.info("Received /api/confirm request. Starting payload decryption.")
     
     decrypted_data = decrypt_payload(
@@ -190,8 +189,20 @@ def confirm_resume(payload: EncryptedPayload):
         logger.info(f"Compiling PDF document with UUID: {req_uuid}")
         generate_resume_pdf(data, output_path)
         logger.info(f"PDF generated successfully at {output_path}. Sending FileResponse.")
+
+        background_tasks.add_task(cleanup_file, output_path)
         
         return FileResponse(output_path, media_type="application/pdf", filename=filename)
     except Exception as e:
         logger.error(f"Error compiling PDF: {str(e)}")
         return JSONResponse(status_code=500, content={"error": "Server error during PDF compilation."})
+    
+
+
+def cleanup_file(path: str):
+    if os.path.exists(path):
+        try:
+            os.remove(path)
+            logger.info(f"Successfully cleaned up file: {path}")
+        except Exception as e:
+            logger.error(f"Failed to delete file {path}: {str(e)}")
