@@ -198,6 +198,9 @@ def confirm_resume(payload: EncryptedPayload, background_tasks: BackgroundTasks)
         return JSONResponse(status_code=500, content={"error": "Server error during PDF compilation."})
     
 
+@app.get("/health")
+async def health_check():
+    return {"status": "ok"}
 
 def cleanup_file(path: str):
     if os.path.exists(path):
